@@ -3,6 +3,8 @@ import { Welcome } from "../welcome/welcome";
 import { Navbar } from "../layout/navbar";
 import type { useState } from "react";
 import aiResponse from "~/components/AIAPI";
+import Sidebar from "../routes/sidebar";
+
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "New React Router App" },
@@ -17,7 +19,10 @@ export default function Home() {
     <>
       <div>
         <p>Hello</p>
-        <Welcome />
+        <div className="flex h-screen">
+          <Sidebar />
+          <Welcome />
+        </div>
       </div>
     </>
   );
