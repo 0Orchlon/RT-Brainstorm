@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getGeminiResponse } from "~/components/AIAPI";
+import ReactMarkdown from "react-markdown";
+import getGeminiResponse from "~/components/AIAPI";
 
 type ChatMessage = {
   id: number;
@@ -39,11 +40,12 @@ export default function ChatBot() {
   };
 
   return (
-    <div className="p-4 max-w-xl mx-auto">
-      <div className="border p-4 rounded bg-white h-64 overflow-y-auto text-black">
+    <div className="p-4 max-w-2xl mx-auto">
+      <div className="border p-4 rounded bg-white h-100 overflow-y-auto text-black">
         {messages.map((msg) => (
-          <div key={msg.id} className="mb-2">
-            <strong>{msg.sender}:</strong> {msg.content}
+          <div key={msg.id} className="mb-2 inline">
+            <strong>{msg.sender}:</strong>{" "}
+            <ReactMarkdown >{msg.content}</ReactMarkdown>
           </div>
         ))}
       </div>
