@@ -1,12 +1,13 @@
 // aiapi.ts
 import { GoogleGenAI } from "@google/genai";
+import { Console } from "console";
 
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API });
 
 async function mainas(): Promise<string> {
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
-    contents: "who are you",
+    contents: "who made you",
     config: {
       thinkingConfig: {
         thinkingBudget: 0, // Disables thinking
@@ -14,6 +15,7 @@ async function mainas(): Promise<string> {
     },
   });
 
+  console.log(response.text);
   return response.text;
 }
 
