@@ -21,24 +21,26 @@ export default function ChatBot() {
 
     setMessages((prev) => [...prev, newMsg]);
 
-    if (input.startsWith("!aibot ")) {
-      const userContent = input.replace("!aibot ", "").trim();
 
-      const reply = await getGeminiResponse(userContent);
+  // Check if !aibot is mentioned
+  const match = input.match(/!aibot\s*(.*)/i);
+  if (match && match[1]) {
+    const userContent = match[1].trim();
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          sender: "aibot",
-          content: reply,
-        },
-      ]);
-    }
+    const reply = await getGeminiResponse(userContent);
 
-    setInput("");
-  };
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now() + 1,
+        sender: "aibot",
+        content: reply,
+      },
+    ]);
+  }
 
+  setInput("");
+};
   return (
     <div className="p-4 max-w-2xl mx-auto">
       <div className="border p-4 rounded bg-white h-100 overflow-y-auto text-black">
