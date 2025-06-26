@@ -19,12 +19,14 @@ export default function Sidebar() {
         .from("t_rooms")
         .select("rid, rname");
 
+      console.log("Rooms data:", data);
+      console.log("Supabase error:", error);
+      
       if (error) {
         console.error("Error fetching rooms:", error);
       } else {
         setRooms(data);
       }
-
       setLoading(false);
     };
 

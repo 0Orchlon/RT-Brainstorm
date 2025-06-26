@@ -1,6 +1,5 @@
 // aiapi.ts
 import { GoogleGenAI } from "@google/genai";
-import { Console } from "console";
 
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API });
 
