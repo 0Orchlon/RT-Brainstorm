@@ -7,7 +7,7 @@ const ai = new GoogleGenAI({
 });
 
 // Export a function to get a Gemini response from user input
-export async function getGeminiResponse(userContent: string): Promise<string> {
+export default async function getGeminiResponse(userContent: string): Promise<string> {
   try {
     const result = await ai.models.generateContent({
       model: "gemini-2.5-flash",
