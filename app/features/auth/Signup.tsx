@@ -48,20 +48,6 @@ const Signup: React.FC = () => {
       const user = data?.user;
 
       if (user) {
-        const { error: insertError } = await supabase.from('users').insert([
-          {
-            uid: user.id,
-            uname: formData.uname,
-            image: null,
-          },
-        ]);
-
-        if (insertError) {
-          setError('Signup succeeded but failed to save user profile: ' + insertError.message);
-          setIsLoading(false);
-          return;
-        }
-
         setSuccess('Account created successfully! Please check your email to verify.');
         setTimeout(() => navigate('/login'), 3000);
       } else {
