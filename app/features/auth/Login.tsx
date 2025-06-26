@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { supabase } from '../../lib/supabase';
-import { Navbar } from '../../layout/navbar';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -32,7 +31,7 @@ const Login: React.FC = () => {
       } else {
         if (data?.session?.access_token) {
           localStorage.setItem('authToken', data.session.access_token);
-          navigate('/');
+          navigate('/dashboard');
         }
       }
     } catch (err: any) {
