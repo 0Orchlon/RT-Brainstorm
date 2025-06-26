@@ -15,17 +15,30 @@ export default function Sidebar() {
 
   useEffect(() => {
     const fetchRooms = async () => {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        console.error("User not authenticated", userError);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
-        .from("t_rooms")
-        .select("rid, rname");
+        .from("t_rooms_users")
+        .select("t_rooms (rid, rname)")
+        .eq("uid", user.id);
 
       console.log("Rooms data:", data);
       console.log("Supabase error:", error);
-      
+
       if (error) {
         console.error("Error fetching rooms:", error);
       } else {
-        setRooms(data);
+        const userRooms = data.map((row: any) => row.t_rooms);
+        setRooms(userRooms);
       }
       setLoading(false);
     };
