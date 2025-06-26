@@ -1,24 +1,27 @@
 // aiapi.ts
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API });
+// Initialize Gemini API
+const ai = new GoogleGenAI({
+  apiKey: import.meta.env.VITE_GEMINI_API,
+});
 
-async function mainas(): Promise<string> {
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: "who made you",
-    config: {
-      thinkingConfig: {
-        thinkingBudget: 0, // Disables thinking
+// Export a function to get a Gemini response from user input
+export async function getGeminiResponse(userContent: string): Promise<string> {
+  try {
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: userContent,
+      config: {
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
       },
-    },
-  });
+    });
 
-  console.log(response.text);
-  return response.text;
+    return result.text;
+  } catch (err) {
+    console.error("AI error:", err);
+    return "Sorry, I couldn't think of a response.";
+  }
 }
-
-// Export the promise of the response text
-const aiResponse = mainas();
-
-export default aiResponse;
