@@ -6,5 +6,6 @@ export default [
   route("login", "features/auth/Login.tsx"),
   route("signup", "features/auth/Signup.tsx"),
   route("dashboard", "pages/dashboard.tsx"),
-  route("join/:rid", "features/join/joinz.tsx")
+  route("join/:rid", "features/join/joinz.tsx"),
+  route("chat", "pages/chat.tsx")
 ] satisfies RouteConfig;
