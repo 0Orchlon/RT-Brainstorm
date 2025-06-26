@@ -17,12 +17,9 @@ export default function Home() {
 
   return (
     <>
-      <div>
-        <p>Hello</p>
-        <div className="flex h-screen">
-          <Sidebar />
-          <Welcome />
-        </div>
+      <div className="flex h-screen">
+        <Sidebar />
+        <Welcome />
       </div>
     </>
   );
