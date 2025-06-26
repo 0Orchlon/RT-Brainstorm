@@ -37,6 +37,9 @@ const Signup: React.FC = () => {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
+        options: {
+          data: { uname: formData.uname }, 
+        },
       });
 
       if (signUpError) {
@@ -46,10 +49,20 @@ const Signup: React.FC = () => {
       }
 
       const user = data?.user;
-
       if (user) {
-        setSuccess('Account created successfully! Please check your email to verify.');
-        setTimeout(() => navigate('/login'), 3000);
+        const { error: insertError } = await supabase
+          .from('t_users')
+          .insert({
+            uid: user.id,
+            uname: formData.uname,
+          });
+
+        if (insertError) {
+          setError(insertError.message);
+        } else {
+          setSuccess('Account created successfully! Please check your email to verify.');
+          setTimeout(() => navigate('/login'), 3000);
+        }
       } else {
         setError('User creation failed. Please try again.');
       }
