@@ -4,4 +4,8 @@
 # React Router
 /.react-router/
 /build/
+<<<<<<< Updated upstream
 *.env.local
+=======
+.env
+>>>>>>> Stashed changes
