@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '~/lib/supabase'; // adjust this import to your actual path
+import { Link } from 'react-router';
+import { supabase } from '~/lib/supabase'; 
 
 const Dashboard: React.FC = () => {
   const [username, setUsername] = useState<string | null>(null);
@@ -37,6 +38,9 @@ const Dashboard: React.FC = () => {
       <h1 className="text-3xl font-bold mb-4 text-blue-700">Dashboard</h1>
       <br />
       <h2 className="text-xl text-gray-800">Welcome, {username || '...'}</h2>
+      <div className='mt-5'>
+        <Link to="/chat" className="bg-blue-100 p-2 text-blue-400 hover:text-blue-700 rounded-2xl">chat</Link>
+      </div>
     </div>
   );
 };
