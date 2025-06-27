@@ -15,7 +15,7 @@ const Signup: React.FC = () => {
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
@@ -38,33 +38,31 @@ const Signup: React.FC = () => {
         email: formData.email,
         password: formData.password,
         options: {
-          data: { uname: formData.uname }, 
+          data: { uname: formData.uname },
         },
       });
 
       if (signUpError) {
         setError(signUpError.message);
-        setIsLoading(false);
         return;
       }
 
       const user = data?.user;
       if (user) {
+        console.log('User signed up:', user);
+
         const { error: insertError } = await supabase
           .from('t_users')
-          .insert({
-            uid: user.id,
-            uname: formData.uname,
-          });
+          .insert([{ uid: user.id, uname: formData.uname }]);
 
         if (insertError) {
-          setError(insertError.message);
+          setError(`Failed to insert user profile: ${insertError.message}`);
         } else {
           setSuccess('Account created successfully! Please check your email to verify.');
           setTimeout(() => navigate('/login'), 3000);
         }
       } else {
-        setError('User creation failed. Please try again.');
+        setError('Signup succeeded but user is null. Please try again.');
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred during signup.');
@@ -87,7 +85,7 @@ const Signup: React.FC = () => {
             required
             value={formData.uname}
             onChange={handleChange}
-            className="appearance-none w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            className="w-full px-3 py-2 border rounded"
           />
           <input
             type="email"
@@ -96,7 +94,7 @@ const Signup: React.FC = () => {
             required
             value={formData.email}
             onChange={handleChange}
-            className="appearance-none w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            className="w-full px-3 py-2 border rounded"
           />
           <input
             type="password"
@@ -105,7 +103,7 @@ const Signup: React.FC = () => {
             required
             value={formData.password}
             onChange={handleChange}
-            className="appearance-none w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            className="w-full px-3 py-2 border rounded"
           />
           <input
             type="password"
@@ -114,28 +112,23 @@ const Signup: React.FC = () => {
             required
             value={formData.confirmPassword}
             onChange={handleChange}
-            className="appearance-none w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            className="w-full px-3 py-2 border rounded"
           />
-          {error && (
-            <p className="text-red-600 text-center text-sm">{error}</p>
-          )}
-          {success && (
-            <p className="text-green-600 text-center text-sm">{success}</p>
-          )}
+
+          {error && <p className="text-red-600 text-center text-sm">{error}</p>}
+          {success && <p className="text-green-600 text-center text-sm">{success}</p>}
+
           <button
             type="submit"
             disabled={isLoading}
-            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
           >
             {isLoading ? 'Creating account...' : 'Sign up'}
           </button>
         </form>
         <p className="text-center text-sm text-gray-600">
           Already have an account?{' '}
-          <Link
-            to="/login"
-            className="font-medium text-indigo-600 hover:text-indigo-500"
-          >
+          <Link to="/login" className="text-indigo-600 hover:text-indigo-500">
             Sign in
           </Link>
         </p>
