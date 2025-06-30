@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import Sidebar from '~/routes/sidebar';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
@@ -192,7 +193,9 @@ const ChatApp: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-8 h-[600px] flex flex-col bg-white rounded-lg shadow-md">
+    <div className='flex h-screen'>
+      <Sidebar/>
+    <div className="w-full h-full mx-auto flex flex-col bg-white rounded-lg shadow-md">
       {/* Header */}
       <div className="p-4 bg-gray-100 border-b border-gray-200">
         <h2 className="text-xl font-bold text-gray-800">Chat</h2>
@@ -278,6 +281,7 @@ const ChatApp: React.FC = () => {
           {message}
         </div>
       )}
+    </div>
     </div>
   );
 };

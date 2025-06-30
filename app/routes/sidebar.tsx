@@ -33,12 +33,9 @@ export default function Sidebar() {
         .eq("uid", user.id)
         .returns<{ t_rooms: Room }[]>();
 
-      console.log("Rooms data:", data);
-      console.log("Supabase error:", error);
-
       if (error) {
         console.error("Error fetching rooms:", error);
-      } else if (data) {
+      } else {
         const userRooms = data.map((row) => row.t_rooms);
         setRooms(userRooms);
       }
@@ -58,17 +55,18 @@ export default function Sidebar() {
       className="w-64 bg-gray-800 text-white p-4 flex flex-col min-h-screen overflow-y-auto"
     >
       <h2 className="text-lg font-semibold mt-6 mb-4">Rooms</h2>
+
       {loading ? (
-        <p className="text-sm text-gray-500">Loading...</p>
+        <p className="text-sm text-gray-400">Loading...</p>
       ) : rooms.length === 0 ? (
-        <p className="text-sm text-gray-500">No rooms found.</p>
+        <p className="text-sm text-gray-400">No rooms found.</p>
       ) : (
         <ul className="space-y-2">
           {rooms.map((room) => (
             <li
               key={room.rid}
               onClick={() => handleNavigate(room.rid)}
-              className="cursor-pointer px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+              className="cursor-pointer px-3 py-2 rounded hover:bg-gray-700 transition duration-200"
             >
               {room.rname}
             </li>
