@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router";
 import { supabase } from "~/lib/supabase";
 import getGeminiResponse from "~/components/AIAPI";
 import ReactMarkdown from "react-markdown";
+import Sidebar from "~/routes/sidebar";
 
 type ChatMessage = {
   chid: number;
@@ -20,6 +21,7 @@ export default function OChat() {
   const { room_id } = useParams();
   const navigate = useNavigate();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const userMapRef = useRef<UserMap>({});
 
   const [userId, setUserId] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -73,8 +75,9 @@ export default function OChat() {
         userInfos.forEach((u) => {
           map[u.uid] = u.uname;
         });
-        map["4f3a9c1e-2b1d-4f9a-6b2c-7d8e9f3b6a1d"] = "aibot";
+        map["4f3a9c1e-2b1d-4f9a-6b2c-7d8e9f3b6a1d"] = "Random Ahh AI";
         setUserMap(map);
+        userMapRef.current = map;
       }
 
       // Subscribe to new messages
@@ -88,8 +91,26 @@ export default function OChat() {
             table: "t_chats",
             filter: `rid=eq.${room_id}`,
           },
-          (payload) => {
+          async (payload) => {
             const newMsg = payload.new as ChatMessage;
+
+            // Check if sender is unknown
+            if (!userMapRef.current[newMsg.uid]) {
+              const { data: userInfo } = await supabase
+                .from("t_users")
+                .select("uid, uname")
+                .eq("uid", newMsg.uid)
+                .maybeSingle();
+
+              if (userInfo) {
+                setUserMap((prev) => {
+                  const updated = { ...prev, [userInfo.uid]: userInfo.uname };
+                  userMapRef.current = updated;
+                  return updated;
+                });
+              }
+            }
+
             setMessages((prev) => [...prev, newMsg]);
           }
         )
@@ -135,34 +156,55 @@ export default function OChat() {
   };
 
   return (
-    <div className="p-4 max-w-3xl mx-auto text-black">
-      <div className="h-[60vh] overflow-y-auto bg-white p-4 rounded shadow">
-        {messages.map((msg) => (
-          <div key={msg.chid} className="mb-4">
-            <strong className="text-blue-600">
-              {userMap[msg.uid] ?? msg.uid}:
-            </strong>
-            <div className="ml-2 inline">
-              <ReactMarkdown>{msg.chtext}</ReactMarkdown>
-            </div>
-          </div>
-        ))}
-        <div ref={bottomRef} />
+    <div>
+      <div className="absolute">
+        <Sidebar />
       </div>
+      <div className="p-4 max-w-3xl mx-auto text-black">
+        <div className="h-[60vh] overflow-y-auto bg-white p-4 rounded shadow">
+          {messages.map((msg) => (
+            <div key={msg.chid} className="mb-4">
+              {messages.map((msg) => {
+                const name = userMap[msg.uid] ?? msg.uid;
 
-      <div className="mt-4 flex">
-        <input
-          className="flex-1 border p-2 rounded"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleMessageSend()}
-        />
-        <button
-          onClick={handleMessageSend}
-          className="ml-2 px-4 py-2 bg-blue-600 text-white rounded"
-        >
-          Send
-        </button>
+                const colorClass =
+                  msg.uid === userId
+                    ? "text-red-600"
+                    : msg.uid === "4f3a9c1e-2b1d-4f9a-6b2c-7d8e9f3b6a1d"
+                    ? "text-green-600"
+                    : "text-blue-600";
+
+                return (
+                  <div key={msg.chid} className="mb-4">
+                    <strong className={colorClass}>{name}:</strong>
+                    <div className="ml-2 inline">
+                      <ReactMarkdown>{msg.chtext}</ReactMarkdown>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* <div className="ml-2 inline">
+                <ReactMarkdown>{msg.chtext}</ReactMarkdown>
+              </div> */}
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+
+        <div className="mt-4 flex">
+          <input
+            className="flex-1 border p-2 rounded bg-amber-50"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleMessageSend()}
+          />
+          <button
+            onClick={handleMessageSend}
+            className="ml-2 px-4 py-2 bg-blue-600 text-white rounded"
+          >
+            Send
+          </button>
+        </div>
       </div>
     </div>
   );
