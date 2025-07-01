@@ -162,49 +162,42 @@ export default function OChat() {
       </div>
       <div className="p-4 max-w-3xl mx-auto text-black">
         <div className="h-[60vh] overflow-y-auto bg-white p-4 rounded shadow">
-          {messages.map((msg) => (
-            <div key={msg.chid} className="mb-4">
-              {messages.map((msg) => {
-                const name = userMap[msg.uid] ?? msg.uid;
+          {messages.map((msg) => {
+            const name = userMap[msg.uid] ?? msg.uid;
 
-                const colorClass =
-                  msg.uid === userId
-                    ? "text-red-600"
-                    : msg.uid === "4f3a9c1e-2b1d-4f9a-6b2c-7d8e9f3b6a1d"
-                    ? "text-green-600"
-                    : "text-blue-600";
+            const colorClass =
+              msg.uid === userId
+                ? "text-red-600"
+                : msg.uid === "4f3a9c1e-2b1d-4f9a-6b2c-7d8e9f3b6a1d"
+                ? "text-green-600"
+                : "text-blue-600";
 
-                return (
-                  <div key={msg.chid} className="mb-4">
-                    <strong className={colorClass}>{name}:</strong>
-                    <div className="ml-2 inline">
-                      <ReactMarkdown>{msg.chtext}</ReactMarkdown>
-                    </div>
-                  </div>
-                );
-              })}
-              {/* <div className="ml-2 inline">
-                <ReactMarkdown>{msg.chtext}</ReactMarkdown>
-              </div> */}
-            </div>
-          ))}
-          <div ref={bottomRef} />
+            return (
+              <div key={msg.chid} className="mb-4">
+                <strong className={colorClass}>{name}:</strong>
+                <div className="ml-2 inline">
+                  <ReactMarkdown>{msg.chtext}</ReactMarkdown>
+                </div>
+              </div>
+            );
+          })}
+        <div ref={bottomRef} />
         </div>
+      </div>
 
-        <div className="mt-4 flex">
-          <input
-            className="flex-1 border p-2 rounded bg-amber-50"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleMessageSend()}
-          />
-          <button
-            onClick={handleMessageSend}
-            className="ml-2 px-4 py-2 bg-blue-600 text-white rounded"
-          >
-            Send
-          </button>
-        </div>
+      <div className="mt-4 flex">
+        <input
+          className="flex-1 border p-2 rounded bg-amber-50 ml-70"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleMessageSend()}
+        />
+        <button
+          onClick={handleMessageSend}
+          className="ml-2 px-4 py-2 bg-blue-600 text-white rounded mr-50"
+        >
+          Send
+        </button>
       </div>
     </div>
   );
