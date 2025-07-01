@@ -26,9 +26,7 @@ export default function Sidebar({ selectedRoom, onRoomSelect }: SidebarProps) {
   const rooms = useLoaderData() as Room[];
 
   return (
-    <aside
-      className="w-64 bg-gray-800 text-white p-4 flex flex-col min-h-screen overflow-y-auto"
-    >
+    <aside className="w-64 bg-gray-800 text-white p-4 flex flex-col min-h-screen overflow-y-auto">
       <h2 className="text-lg font-semibold mt-6 mb-4">Rooms</h2>
 
       {rooms.length === 0 ? (
