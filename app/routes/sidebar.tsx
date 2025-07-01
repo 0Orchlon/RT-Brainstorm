@@ -1,53 +1,41 @@
-import type { UUID } from "crypto";
 import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router";
 import { supabase } from "~/lib/supabase";
 
-type Room = {
-  rid: UUID;
-  rname: string;
+export type Room = {
+  rid: string;
 };
 
-export default function Sidebar() {
+interface SidebarProps {
+  selectedRoom: string;
+  onRoomSelect: (rid: string) => void;
+}
+
+export default function Sidebar({ selectedRoom, onRoomSelect }: SidebarProps) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchRooms = async () => {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      try {
+        const { data, error } = await supabase
+          .from("t_chats")
+          .select("rid")
+          .not("rid", "is", null);
 
-      if (userError || !user) {
-        console.error("User not authenticated", userError);
+        if (error) throw error;
+
+        const uniqueRoomIds = Array.from(new Set(data.map((item) => item.rid)));
+        setRooms(uniqueRoomIds.map((rid) => ({ rid })));
+      } catch (err) {
+        console.error("Error fetching rooms:", err);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const { data, error } = await supabase
-        .from("t_rooms_users")
-        .select("t_rooms(rid, rname)")
-        .eq("uid", user.id)
-        .returns<{ t_rooms: Room }[]>();
-
-      if (error) {
-        console.error("Error fetching rooms:", error);
-      } else {
-        const userRooms = data.map((row) => row.t_rooms);
-        setRooms(userRooms);
-      }
-      setLoading(false);
     };
 
     fetchRooms();
   }, []);
-
-  const handleNavigate = (rid: UUID) => {
-    navigate(`/room/${rid}`);
-  };
 
   return (
     <aside
@@ -65,10 +53,12 @@ export default function Sidebar() {
           {rooms.map((room) => (
             <li
               key={room.rid}
-              onClick={() => handleNavigate(room.rid)}
-              className="cursor-pointer px-3 py-2 rounded hover:bg-gray-700 transition duration-200"
+              onClick={() => onRoomSelect(room.rid)}
+              className={`cursor-pointer px-3 py-2 rounded ${
+                selectedRoom === room.rid ? "bg-gray-700" : "hover:bg-gray-700"
+              } transition duration-200`}
             >
-              {room.rname}
+              Room {room.rid.slice(0, 8)}...
             </li>
           ))}
         </ul>

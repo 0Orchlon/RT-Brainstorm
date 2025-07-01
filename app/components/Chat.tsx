@@ -118,10 +118,9 @@ const ChatApp: React.FC = () => {
     };
   }, [selectedRoom]);
 
-  const handleRoomChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const room = e.target.value;
-    setSelectedRoom(room);
-    setFormData(prev => ({ ...prev, rid: room }));
+  const handleRoomSelect = (rid: string) => {
+    setSelectedRoom(rid);
+    setFormData(prev => ({ ...prev, rid }));
     setChatMessages([]);
   };
 
@@ -194,94 +193,84 @@ const ChatApp: React.FC = () => {
 
   return (
     <div className='flex h-screen'>
-      <Sidebar/>
-    <div className="w-full h-full mx-auto flex flex-col bg-white rounded-lg shadow-md">
-      {/* Header */}
-      <div className="p-4 bg-gray-100 border-b border-gray-200">
-        <h2 className="text-xl font-bold text-gray-800">Chat</h2>
-        <select
-          value={selectedRoom}
-          onChange={handleRoomChange}
-          className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Select a room...</option>
-          {rooms.map(room => (
-            <option key={room} value={room}>
-              Room {room.slice(0, 8)}...
-            </option>
-          ))}
-        </select>
-      </div>
+      <Sidebar selectedRoom={selectedRoom} onRoomSelect={handleRoomSelect} />
+      <div className="w-full h-full mx-auto flex flex-col bg-white rounded-lg shadow-md">
+        {/* Header */}
+        <div className="p-4 bg-gray-100 border-b border-gray-200">
+          <h2 className="text-xl font-bold text-gray-800">
+            {selectedRoom ? `Chat - Room ${selectedRoom.slice(0, 8)}...` : 'Chat'}
+          </h2>
+        </div>
 
-      {/* Messages */}
-      <div className="flex-1 p-4 overflow-y-auto">
-        {loading ? (
-          <p className="text-gray-600 text-center">Loading messages...</p>
-        ) : selectedRoom && chatMessages.length > 0 ? (
-          <div className="space-y-3">
-            {chatMessages.map(chat => (
-              <div
-                key={chat.chid || `${chat.uid}-${chat.chdate}`}
-                className={`flex ${chat.uid === uid ? 'justify-end' : 'justify-start'}`}
-              >
+        {/* Messages */}
+        <div className="flex-1 p-4 overflow-y-auto">
+          {loading ? (
+            <p className="text-gray-600 text-center">Loading messages...</p>
+          ) : selectedRoom && chatMessages.length > 0 ? (
+            <div className="space-y-3">
+              {chatMessages.map(chat => (
                 <div
-                  className={`max-w-[70%] p-3 rounded-lg ${
-                    chat.uid === uid ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'
-                  }`}
+                  key={chat.chid || `${chat.uid}-${chat.chdate}`}
+                  className={`flex ${chat.uid === uid ? 'justify-end' : 'justify-start'}`}
                 >
-                  <p className="text-sm">{chat.chtext}</p>
-                  <p className="text-xs mt-1 opacity-75">
-                    {new Date(chat.chdate).toLocaleTimeString('mn-MN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </p>
+                  <div
+                    className={`max-w-[70%] p-3 rounded-lg ${
+                      chat.uid === uid ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'
+                    }`}
+                  >
+                    <p className="text-sm">{chat.chtext}</p>
+                    <p className="text-xs mt-1 opacity-75">
+                      {new Date(chat.chdate).toLocaleTimeString('mn-MN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          ) : selectedRoom ? (
+            <p className="text-gray-600 text-center">No messages in this room.</p>
+          ) : (
+            <p className="text-gray-600 text-center">Please select a room to view messages.</p>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="p-4 border-t border-gray-200">
+          <form onSubmit={handleSubmit} className="flex space-x-2">
+            <textarea
+              name="chtext"
+              value={formData.chtext}
+              onChange={handleInputChange}
+              placeholder="Type a message..."
+              required
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 h-12 resize-none"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400"
+            >
+              {loading ? 'Sending...' : 'Send'}
+            </button>
+          </form>
+        </div>
+
+        {/* Status Message */}
+        {message && (
+          <div
+            className={`p-3 m-4 rounded-md ${
+              message.toLowerCase().includes('error')
+                ? 'bg-red-100 text-red-700 border border-red-200'
+                : 'bg-green-100 text-green-700 border border-green-200'
+            }`}
+          >
+            {message}
           </div>
-        ) : selectedRoom ? (
-          <p className="text-gray-600 text-center">No messages in this room.</p>
-        ) : (
-          <p className="text-gray-600 text-center">Please select a room to view messages.</p>
         )}
       </div>
-
-      {/* Input */}
-      <div className="p-4 border-t border-gray-200">
-        <form onSubmit={handleSubmit} className="flex space-x-2">
-          <textarea
-            name="chtext"
-            value={formData.chtext}
-            onChange={handleInputChange}
-            placeholder="Type a message..."
-            required
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 h-12 resize-none"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400"
-          >
-            {loading ? 'Sending...' : 'Send'}
-          </button>
-        </form>
-      </div>
-
-      {/* Status Message */}
-      {message && (
-        <div
-          className={`p-3 m-4 rounded-md ${
-            message.toLowerCase().includes('error')
-              ? 'bg-red-100 text-red-700 border border-red-200'
-              : 'bg-green-100 text-green-700 border border-green-200'
-          }`}
-        >
-          {message}
-        </div>
-      )}
-    </div>
     </div>
   );
 };
