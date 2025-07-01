@@ -187,7 +187,7 @@ export default function OChat() {
 
       <div className="mt-4 flex">
         <input
-          className="flex-1 border p-2 rounded bg-amber-50 ml-70"
+          className="flex-1 border p-2 rounded bg-amber-50 ml-70 text-black"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleMessageSend()}
