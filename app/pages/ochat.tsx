@@ -125,35 +125,46 @@ export default function OChat() {
     };
   }, [room_id, navigate]);
 
-  const handleMessageSend = async () => {
-    const text = input.trim();
-    if (!text) return;
+const handleMessageSend = async () => {
+  const text = input.trim();
+  if (!text) return;
 
-    const timestamp = new Date().toISOString();
+  const timestamp = new Date().toISOString();
+
+  const { error } = await supabase.from("t_chats").insert({
+    chtext: text,
+    rid: room_id,
+    uid: userId,
+    chdate: timestamp,
+  });
+
+  // Optional fallback: reload if subscription hasn't caught up
+  setTimeout(async () => {
+    const { data: latestMsgs } = await supabase
+      .from("t_chats")
+      .select("*")
+      .eq("rid", room_id)
+      .order("chdate", { ascending: true });
+
+    if (latestMsgs) setMessages(latestMsgs);
+  }, 500); // gives Supabase some time to sync
+
+  // AI Bot handling
+  const match = text.match(/!aibot\s*(.*)/i);
+  if (match && match[1]) {
+    const prompt = match[1];
+    const aiReply = await getGeminiResponse(prompt);
 
     await supabase.from("t_chats").insert({
-      chtext: text,
+      chtext: aiReply,
       rid: room_id,
-      uid: userId,
-      chdate: timestamp,
+      uid: "4f3a9c1e-2b1d-4f9a-6b2c-7d8e9f3b6a1d",
+      chdate: new Date().toISOString(),
     });
+  }
 
-    // Check for AI bot
-    const match = text.match(/!aibot\s*(.*)/i);
-    if (match && match[1]) {
-      const prompt = match[1];
-      const aiReply = await getGeminiResponse(prompt);
-
-      await supabase.from("t_chats").insert({
-        chtext: aiReply,
-        rid: room_id,
-        uid: "4f3a9c1e-2b1d-4f9a-6b2c-7d8e9f3b6a1d",
-        chdate: new Date().toISOString(),
-      });
-    }
-
-    setInput("");
-  };
+  setInput("");
+};
 
   return (
     <div>
