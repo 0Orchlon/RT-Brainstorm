@@ -1,7 +1,7 @@
 // src/pages/RoomPage.tsx
 import React from 'react';
 import Sidebar from '../components/sidebar';
-import Chat from '../components/chat';
+import Chat from '../components/Chat';
 
 export default function RoomPage() {
   return (

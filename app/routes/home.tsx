@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supanbase'; // анхаар: 'supanbase' биш!
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import RoomCard from '../components/roomCard'; // RoomCard component
 
 type Room = {

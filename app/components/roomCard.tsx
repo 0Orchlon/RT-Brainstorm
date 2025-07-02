@@ -1,6 +1,6 @@
 // src/components/RoomCard.tsx
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 type Room = {
   rid: string;

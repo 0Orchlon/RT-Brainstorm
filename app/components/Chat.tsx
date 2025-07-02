@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router';
 import { supabase } from '../supanbase';
-import Navbar from './navbar';
+import Poll from './Poll';
 
 interface Message {
   chid: number;
@@ -10,20 +10,30 @@ interface Message {
   uid: string;
 }
 
-interface User {
-  uid: string;
-  uname?: string;
+interface PollOption {
+  option_id: number;
+  option_text: string;
+  vote_count: number;
+}
+
+interface Poll {
+  poll_id: number;
+  question: string;
+  options: PollOption[];
+  created_by: string;
+  created_at: string;
+  room_id: string;
 }
 
 export default function Chat() {
   const { rid } = useParams();
   const [roomName, setRoomName] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [polls, setPolls] = useState<Poll[]>([]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
 
@@ -38,33 +48,12 @@ export default function Chat() {
 
     const init = async () => {
       const { data: userData, error: userError } = await supabase.auth.getUser();
-
       if (userError || !userData?.user) {
         navigate('/login');
         return;
       }
 
-      const user = userData.user;
-
-      const { data: roomUsers, error } = await supabase
-        .from('t_rooms_users')
-        .select('uid')
-        .eq('rid', rid)
-        .eq('uid', user.id);
-
-      if (error) {
-        console.error(error);
-        navigate('/');
-        return;
-      }
-
-      if (!roomUsers || roomUsers.length === 0) {
-        alert('Та энэ өрөөнд орох эрхгүй байна.');
-        navigate('/');
-        return;
-      }
-
-      setUserId(user.id);
+      setUserId(userData.user.id);
 
       supabase
         .from('t_rooms')
@@ -75,8 +64,8 @@ export default function Chat() {
           if (data) setRoomName(data.rname);
         });
 
-      fetchRoomUsers();
       fetchMessages();
+      fetchPolls();
 
       const channel = supabase
         .channel(`room_chats_${rid}`)
@@ -89,8 +78,7 @@ export default function Chat() {
             filter: `rid=eq.${rid}`,
           },
           (payload) => {
-            const msg = payload.new as Message;
-            setMessages((prev) => [...prev, msg]);
+            setMessages((prev) => [...prev, payload.new as Message]);
           }
         )
         .subscribe();
@@ -110,55 +98,31 @@ export default function Chat() {
       .eq('rid', rid)
       .order('chdate', { ascending: true });
 
-    if (error) console.error(error);
+    if (error) console.error('Error:', error.message);
     if (data) setMessages(data);
   }
 
-  async function fetchRoomUsers() {
-    if (!rid) return;
+  async function fetchPolls() {
+    const { data, error } = await supabase
+      .from('t_polls')
+      .select('*')
+      .eq('room_id', rid)
+      .order('created_at', { ascending: true });
 
-    const { data: roomUsers, error } = await supabase
-      .from('t_rooms_users')
-      .select('uid')
-      .eq('rid', rid);
-
-    if (error) {
-      console.error('Room хэрэглэгчдийг авахад алдаа:', error.message);
-      return;
-    }
-
-    if (roomUsers && roomUsers.length > 0) {
-      const userIds = roomUsers.map((ru) => ru.uid);
-
-      const { data: usersData, error: usersError } = await supabase
-        .from('t_users')
-        .select('uid, uname')
-        .in('uid', userIds);
-
-      if (usersError) {
-        console.error('t_users авахад алдаа:', usersError.message);
-        return;
-      }
-
-      setUsers(usersData || []);
-    } else {
-      setUsers([]);
-    }
+    if (error) console.error('Reminder error:', error.message);
+    if (data) setPolls(data);
   }
 
   async function sendMessage() {
     if (!newMessage.trim() || !userId || !rid) return;
 
-    // Хэрвээ AI команд уу?
-    if (newMessage.trim().startsWith("!aibot")) {
-      const prompt = newMessage.trim().replace("!aibot", "").trim();
-
+    if (newMessage.trim().startsWith('!aipoll')) {
+      const prompt = newMessage.trim().replace('!aipoll', '').trim();
       if (!prompt) {
-        alert("AI-д илгээх текст оруулна уу.");
+        alert('AI-д илгээх текст оруулна уу.');
         return;
       }
 
-      // Эхлээд хэрэглэгчийн мессежийг хадгална
       const { error: userMsgError } = await supabase.from('t_chats').insert([
         {
           chtext: newMessage.trim(),
@@ -169,22 +133,35 @@ export default function Chat() {
       ]);
 
       if (userMsgError) {
-        alert("AI асуултыг хадгалж чадсангүй: " + userMsgError.message);
+        alert('AI асуултыг хадгалж чадсангүй: ' + userMsgError.message);
         return;
       }
 
       setNewMessage('');
-
-      // AI-тай холбогдоно
       setAiLoading(true);
-      const aiResponse = await askGemini(prompt);
+      const aiPoll = await generateAIPoll(prompt);
       setAiLoading(false);
 
-      if (aiResponse) {
-        // AI-ийн хариуг бас Supabase руу хадгална
+      if (aiPoll) {
+        const { error: pollError } = await supabase.from('t_polls').insert([
+          {
+            question: aiPoll.question,
+            options: aiPoll.options,
+            created_by: AI_BOT_UID,
+            created_at: new Date().toISOString(),
+            room_id: rid,
+          },
+        ]);
+
+        if (pollError) {
+          alert('Санал асуулга хадгалахад алдаа: ' + pollError.message);
+          return;
+        }
+
+        setPolls([...polls, aiPoll]);
         const { error: aiError } = await supabase.from('t_chats').insert([
           {
-            chtext: aiResponse,
+            chtext: `Санал асуулга: ${aiPoll.question}`,
             chdate: new Date().toISOString(),
             uid: AI_BOT_UID,
             rid,
@@ -192,14 +169,12 @@ export default function Chat() {
         ]);
 
         if (aiError) {
-          alert("AI хариу хадгалахад алдаа: " + aiError.message);
+          alert('AI хариу хадгалахад алдаа: ' + aiError.message);
         }
       }
-
       return;
     }
 
-    // Хэрвээ энгийн мессеж бол
     const { error } = await supabase.from('t_chats').insert([
       {
         chtext: newMessage.trim(),
@@ -217,37 +192,74 @@ export default function Chat() {
     setNewMessage('');
   }
 
-  async function askGemini(prompt: string) {
+  async function generateAIPoll(prompt: string) {
     setAiError(null);
+    setAiLoading(true);
 
     try {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=AIzaSyBGbgEtONplq47P1ypu30788etWwxNw8hw`,
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt + "255 character аас ихгүй гээр хариул" }] }],
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Generate a poll question with 3 options based on this prompt: "${prompt}". Return in JSON format: {"question": "...", "options": ["...", "...", "..."]}. Keep each option under 50 characters.`,
+                  },
+                ],
+              },
+            ],
           }),
         }
       );
 
       const data = await res.json();
-      console.log("AI response:", data);
       if (data.error) {
         setAiError(data.error.message);
+        setAiLoading(false);
         return null;
       }
 
-      const text =
-        data.candidates?.[0]?.content?.parts?.[0]?.text ||
-        "AI хариу олдсонгүй.";
+      let responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!responseText) {
+        setAiError('AI хариу олдсонгүй.');
+        setAiLoading(false);
+        return null;
+      }
 
-      return text;
+      responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+      let aiPoll;
+      try {
+        aiPoll = JSON.parse(responseText);
+      } catch (parseError: any) {
+        setAiError('JSON хөрвүүлэхэд алдаа: ' + parseError.message);
+        setAiLoading(false);
+        return null;
+      }
+
+      setAiLoading(false);
+
+      return {
+        poll_id: polls.length + 1,
+        question: aiPoll.question,
+        options: aiPoll.options.map((opt: string, index: number) => ({
+          option_id: index + 1,
+          option_text: opt,
+          vote_count: 0,
+        })),
+        created_by: AI_BOT_UID,
+        created_at: new Date().toISOString(),
+        room_id: rid || '',
+      };
     } catch (error: any) {
-      setAiError("Сүлжээний алдаа: " + error.message);
+      setAiError('Сүлжээний алдаа: ' + error.message);
+      setAiLoading(false);
       return null;
     }
   }
@@ -262,14 +274,18 @@ export default function Chat() {
         backgroundColor: '#f4f6fb',
       }}
     >
-      <Navbar
-        roomName={roomName}
-        roomId={rid}
-        userId={userId}
-        onAddUserClick={() => alert('Хүн нэмэхийг энд хэрэгжүүлнэ үү')}
-        onUserClick={(uid) => alert('User clicked: ' + uid)}
-        users={users}
-      />
+      <div
+        style={{
+          padding: '1rem 1.5rem',
+          backgroundColor: '#2c2625',
+          borderBottom: '1px solid #ddd',
+          fontSize: '18px',
+          fontWeight: 600,
+          color: '#fff',
+        }}
+      >
+        💬 Room: {roomName}
+      </div>
 
       <div
         style={{
@@ -283,27 +299,14 @@ export default function Chat() {
         }}
       >
         {messages.map((msg) => {
-          const isAI = msg.uid === AI_BOT_UID;
           const isMine = msg.uid === userId;
-
-          let senderName = "Гарсан хэрэглэгч";
-          if (isAI) senderName = "Gemini AI";
-          else {
-            const sender = users.find((u) => u.uid === msg.uid);
-            if (sender?.uname) senderName = sender.uname;
-          }
-
           return (
             <div
               key={msg.chid}
               style={{
                 alignSelf: isMine ? 'flex-end' : 'flex-start',
-                backgroundColor: isAI
-                  ? '#34a853'
-                  : isMine
-                  ? '#3d5afe'
-                  : '#ffffff',
-                color: isAI || isMine ? '#fff' : '#333',
+                backgroundColor: isMine ? '#3d5afe' : '#ffffff',
+                color: isMine ? '#fff' : '#333',
                 padding: '12px 16px',
                 borderRadius: '18px',
                 maxWidth: '70%',
@@ -314,14 +317,9 @@ export default function Chat() {
             >
               {!isMine && (
                 <div
-                  style={{
-                    fontSize: '13px',
-                    color: '#888',
-                    marginBottom: '4px',
-                    fontWeight: 600,
-                  }}
+                  style={{ fontSize: '13px', color: '#888', marginBottom: '4px' }}
                 >
-                  {senderName}
+                  {msg.uid === AI_BOT_UID ? 'Gemini AI' : msg.uid}
                 </div>
               )}
               <div>{msg.chtext}</div>
@@ -338,7 +336,7 @@ export default function Chat() {
             </div>
           );
         })}
-
+        <Poll userId={userId} roomId={rid} polls={polls} setPolls={setPolls} />
         <div ref={messagesEndRef} />
       </div>
 
@@ -361,7 +359,7 @@ export default function Chat() {
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Мессеж бичих..."
+          placeholder="create pol like !aipoll <idea>"
           onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
           style={{
             flex: 1,
@@ -370,7 +368,6 @@ export default function Chat() {
             border: '1px solid #ccc',
             outline: 'none',
             fontSize: '15px',
-            color: '#ccc',
           }}
         />
         <button
@@ -386,7 +383,7 @@ export default function Chat() {
             fontWeight: 500,
           }}
         >
-          {aiLoading ? 'AI бичиж байна...' : 'Илгээх'}
+          {aiLoading ? 'AI is writing...' : 'send'}
         </button>
       </div>
     </div>
