@@ -84,7 +84,7 @@ export default function Sidebar() {
       }}
     >
       <h2 style={{ marginBottom: '1.5rem', fontSize: '18px', fontWeight: 600 }}>
-        🗂 Миний Room-ууд
+        🗂 Миний Өрөөнүүд
       </h2>
 
 
@@ -120,7 +120,7 @@ export default function Sidebar() {
       <div style={{ marginBottom: '1rem' }}>
         <input
           type="text"
-          placeholder="Шинэ room-н нэр"
+          placeholder="Шинэ өрөөний нэр"
           value={newRoomName}
           onChange={(e) => setNewRoomName(e.target.value)}
           style={{
@@ -148,7 +148,7 @@ export default function Sidebar() {
           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2f43d6')}
           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#3d5afe')}
         >
-          Room нэмэх
+          Өрөө нэмэх
         </button>
       </div>
     </div>

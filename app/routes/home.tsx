@@ -53,7 +53,7 @@ export default function Home() {
       .single();
 
     if (error || !room) {
-      alert('Room нэмэхэд алдаа гарлаа: ' + error?.message);
+      alert('Өрөө нэмэхэд алдаа гарлаа: ' + error?.message);
       return;
     }
 
@@ -75,7 +75,7 @@ export default function Home() {
     <div style={{ maxWidth: 600, margin: 'auto', padding: '1rem' }}>
       {/* Header with logout */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>Миний Room-ууд</h2>
+        <h2>Миний өрөөнүүд</h2>
         <button
           onClick={logout}
           style={{
@@ -100,7 +100,7 @@ export default function Home() {
       <div style={{ marginTop: '1rem' }}>
         <input
           type="text"
-          placeholder="Шинэ room"
+          placeholder="Шинэ өрөөны нэр"
           value={newRoomName}
           onChange={(e) => setNewRoomName(e.target.value)}
           style={{ padding: '8px', borderRadius: '6px', border: '1px solid #ccc', width: '70%' }}
@@ -117,7 +117,7 @@ export default function Home() {
             cursor: 'pointer',
           }}
         >
-          Room нэмэх
+          Өрөө нэмэх
         </button>
       </div>
     </div>

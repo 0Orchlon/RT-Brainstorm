@@ -40,9 +40,9 @@ export default function RoomCard({ room }: { room: Room }) {
       <h3 style={{ margin: '0 0 6px', fontSize: '18px', fontWeight: 600, color: '#333' }}>
         {room.rname}
       </h3>
-      <p style={{ margin: 0, fontSize: '14px', color: '#777' }}>
+      {/* <p style={{ margin: 0, fontSize: '14px', color: '#777' }}>
         Room ID: {room.rid}
-      </p>
+      </p> */}
     </div>
   );
 }
