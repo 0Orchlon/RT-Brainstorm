@@ -1,278 +1,230 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import Sidebar from '~/routes/sidebar';
+// src/components/Chat.tsx
+import React, { useEffect, useState, useRef } from 'react';
+import { useParams } from 'react-router-dom';
+import { supabase } from '../supanbase'; // Таны supabase client-ийг зөв импортлох
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-interface ChatMessage {
-  chid?: number;
+interface Message {
+  chid: number;
   chtext: string;
   chdate: string;
   uid: string;
-  rid: string;
 }
 
-const ChatApp: React.FC = () => {
-  const [rooms, setRooms] = useState<string[]>([]);
-  const [selectedRoom, setSelectedRoom] = useState<string>('');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [formData, setFormData] = useState<Omit<ChatMessage, 'uid' | 'chdate'>>({
-    chtext: '',
-    rid: '',
-  });
-  const [uid, setUid] = useState<string>('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+export default function Chat() {
+  const { rid } = useParams();
+  const [roomName, setRoomName] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [userId, setUserId] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const scrollToBottom = () => {
+  // Доошоо автоматаар скролл хийх
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, [messages]);
 
-  // Scroll to bottom whenever messages change
   useEffect(() => {
-    scrollToBottom();
-  }, [chatMessages]);
+    if (!rid) return;
 
-  // Get UID from local storage
-  useEffect(() => {
-    const savedUid = localStorage.getItem('uid');
-    if (savedUid) {
-      setUid(savedUid);
-    } else {
-      setMessage('User ID not found. Please login.');
-    }
-  }, []);
+    // Хэрэглэгчийн ID-г авах
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUserId(user.id);
+    });
 
-  // Load unique room list
-  useEffect(() => {
-    const fetchRooms = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('t_chats')
-          .select('rid')
-          .not('rid', 'is', null);
+    // Room-н нэрийг авах
+    supabase
+      .from('t_rooms')
+      .select('rname')
+      .eq('rid', rid)
+      .single()
+      .then(({ data }) => {
+        if (data) setRoomName(data.rname);
+      });
 
-        if (error) throw error;
-
-        const uniqueRooms = [...new Set(data.map(item => item.rid))];
-        setRooms(uniqueRooms);
-      } catch (error: any) {
-        setMessage(`Error fetching rooms: ${error.message}`);
-      }
-    };
-
-    fetchRooms();
-  }, []);
-
-  // Fetch messages when a room is selected
-  useEffect(() => {
-    if (!selectedRoom) return;
-
-    const fetchMessages = async () => {
-      setLoading(true);
-      setMessage('');
-
-      try {
-        const { data, error } = await supabase
-          .from('t_chats')
-          .select('*')
-          .eq('rid', selectedRoom)
-          .order('chdate', { ascending: true });
-
-        if (error) throw error;
-
-        setChatMessages(data || []);
-      } catch (error: any) {
-        setMessage(`Error fetching messages: ${error.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    // Одоогийн мессежүүдийг татах
     fetchMessages();
 
-    // Real-time subscription
-    const subscription = supabase
-      .channel('chat-room-listener')
+    // Realtime subscribe хийх (room тус бүрт channel үүсгэх)
+    const channel = supabase
+      .channel(`room_chats_${rid}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 't_chats',
+          filter: `rid=eq.${rid}`,
         },
         (payload) => {
-          const newMessage = payload.new as ChatMessage;
-          if (newMessage.rid === selectedRoom) {
-            setChatMessages(prev => [...prev, newMessage]);
-          }
+          console.log('Realtime message ирлээ:', payload.new);
+          const msg = payload.new as Message;
+          setMessages((prev) => [...prev, msg]);
         }
       )
-      .subscribe();
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Realtime subscribe амжилттай:', rid);
+        }
+      });
 
+    // Cleanup: channel-ийг устгах
     return () => {
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(channel);
     };
-  }, [selectedRoom]);
+  }, [rid]);
 
-  const handleRoomSelect = (rid: string) => {
-    setSelectedRoom(rid);
-    setFormData(prev => ({ ...prev, rid }));
-    setChatMessages([]);
-  };
+  // Мессежүүдийг татах функц
+  async function fetchMessages() {
+    const { data, error } = await supabase
+      .from('t_chats')
+      .select('*')
+      .eq('rid', rid)
+      .order('chdate', { ascending: true });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+    if (error) {
+      console.error('Мессеж татахад алдаа:', error.message);
+    }
+    if (data) setMessages(data);
+  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage('');
+  // Мессеж илгээх функц
+  async function sendMessage() {
+    if (!newMessage.trim() || !userId || !rid) return;
 
-    if (!uid) {
-      setMessage('User not logged in.');
-      setLoading(false);
+    const { error } = await supabase.from('t_chats').insert([
+      {
+        chtext: newMessage.trim(),
+        chdate: new Date().toISOString(),
+        uid: userId,
+        rid,
+      },
+    ]);
+
+    if (error) {
+      alert('Мессеж илгээхэд алдаа гарлаа: ' + error.message);
       return;
     }
 
-    if (!formData.rid) {
-      setMessage('Please select or enter a room ID.');
-      setLoading(false);
-      return;
-    }
-
-    const timestamp = new Date().toISOString();
-
-    try {
-      const { error } = await supabase
-        .from('t_chats')
-        .insert([
-          {
-            chtext: formData.chtext,
-            chdate: timestamp,
-            uid: uid,
-            rid: formData.rid,
-          },
-        ]);
-
-      if (error) throw error;
-
-      // Add message to local UI immediately
-      const newMessage: ChatMessage = {
-        chtext: formData.chtext,
-        chdate: timestamp,
-        uid: uid,
-        rid: formData.rid,
-      };
-      setChatMessages(prev => [...prev, newMessage]);
-
-      setMessage('Message sent!');
-      setFormData(prev => ({ ...prev, chtext: '' }));
-
-      if (!rooms.includes(formData.rid)) {
-        setRooms(prev => [...prev, formData.rid]);
-      }
-
-      if (!selectedRoom) {
-        setSelectedRoom(formData.rid);
-      }
-    } catch (error: any) {
-      setMessage(`Error: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setNewMessage('');
+  }
 
   return (
-    <div className='flex h-screen'>
-      <Sidebar selectedRoom={selectedRoom} onRoomSelect={handleRoomSelect} />
-      <div className="w-full h-full mx-auto flex flex-col bg-white rounded-lg shadow-md">
-        {/* Header */}
-        <div className="p-4 bg-gray-100 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-800">
-            {selectedRoom ? `Chat - Room ${selectedRoom.slice(0, 8)}...` : 'Chat'}
-          </h2>
-        </div>
+    <div
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        backgroundColor: '#f4f6fb',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          padding: '1rem 1.5rem',
+          backgroundColor: '#2c2625',
+          borderBottom: '1px solid #ddd',
+          fontSize: '18px',
+          fontWeight: 600,
+          color: '#fff',
+        }}
+      >
+        💬 Room: {roomName}
+      </div>
 
-        {/* Messages */}
-        <div className="flex-1 p-4 overflow-y-auto">
-          {loading ? (
-            <p className="text-gray-600 text-center">Loading messages...</p>
-          ) : selectedRoom && chatMessages.length > 0 ? (
-            <div className="space-y-3">
-              {chatMessages.map(chat => (
-                <div
-                  key={chat.chid || `${chat.uid}-${chat.chdate}`}
-                  className={`flex ${chat.uid === uid ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[70%] p-3 rounded-lg ${
-                      chat.uid === uid ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'
-                    }`}
-                  >
-                    <p className="text-sm">{chat.chtext}</p>
-                    <p className="text-xs mt-1 opacity-75">
-                      {new Date(chat.chdate).toLocaleTimeString('mn-MN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          ) : selectedRoom ? (
-            <p className="text-gray-600 text-center">No messages in this room.</p>
-          ) : (
-            <p className="text-gray-600 text-center">Please select a room to view messages.</p>
-          )}
-        </div>
-
-        {/* Input */}
-        <div className="p-4 border-t border-gray-200">
-          <form onSubmit={handleSubmit} className="flex space-x-2">
-            <textarea
-              name="chtext"
-              value={formData.chtext}
-              onChange={handleInputChange}
-              placeholder="Type a message..."
-              required
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 h-12 resize-none"
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400"
+      {/* Messages */}
+      <div
+        style={{
+          flex: 1,
+          padding: '1.5rem',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem',
+          backgroundColor: '#433c3b',
+        }}
+      >
+        {messages.map((msg) => {
+          const isMine = msg.uid === userId;
+          return (
+            <div
+              key={msg.chid}
+              style={{
+                alignSelf: isMine ? 'flex-end' : 'flex-start',
+                backgroundColor: isMine ? '#3d5afe' : '#ffffff',
+                color: isMine ? '#fff' : '#333',
+                padding: '12px 16px',
+                borderRadius: '18px',
+                maxWidth: '70%',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                position: 'relative',
+                wordBreak: 'break-word',
+              }}
             >
-              {loading ? 'Sending...' : 'Send'}
-            </button>
-          </form>
-        </div>
+              {!isMine && (
+                <div
+                  style={{ fontSize: '13px', color: '#888', marginBottom: '4px' }}
+                >
+                  {msg.uid}
+                </div>
+              )}
+              <div>{msg.chtext}</div>
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: isMine ? '#d0dfff' : '#999',
+                  marginTop: '6px',
+                  textAlign: 'right',
+                }}
+              >
+                {new Date(msg.chdate).toLocaleTimeString()}
+              </div>
+            </div>
+          );
+        })}
+        <div ref={messagesEndRef} />
+      </div>
 
-        {/* Status Message */}
-        {message && (
-          <div
-            className={`p-3 m-4 rounded-md ${
-              message.toLowerCase().includes('error')
-                ? 'bg-red-100 text-red-700 border border-red-200'
-                : 'bg-green-100 text-green-700 border border-green-200'
-            }`}
-          >
-            {message}
-          </div>
-        )}
+      {/* Input box */}
+      <div
+        style={{
+          padding: '1rem',
+          borderTop: '1px solid #ddd',
+          backgroundColor: '#2c2625',
+          display: 'flex',
+          gap: '10px',
+        }}
+      >
+        <input
+          type="text"
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          placeholder="Мессеж бичих..."
+          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+          style={{
+            flex: 1,
+            padding: '12px',
+            borderRadius: '20px',
+            border: '1px solid #ccc',
+            outline: 'none',
+            fontSize: '15px',
+          }}
+        />
+        <button
+          onClick={sendMessage}
+          style={{
+            padding: '12px 20px',
+            backgroundColor: '#3d5afe',
+            color: 'white',
+            border: 'none',
+            borderRadius: '20px',
+            cursor: 'pointer',
+            fontWeight: 500,
+          }}
+        >
+          Илгээх
+        </button>
       </div>
     </div>
   );
-};
-
-export default ChatApp;
+}
