@@ -28,7 +28,7 @@ export default function Poll({ userId, roomId, polls, setPolls }: PollProps) {
   const AI_BOT_UID = "4f3a9c1e-2b1d-4f9a-6b2c-7d8e9f3b6a1d";
 
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId || !userId) return;
 
     fetchPollVotes();
 
@@ -54,7 +54,9 @@ export default function Poll({ userId, roomId, polls, setPolls }: PollProps) {
           table: 't_poll_votes',
         },
         (payload) => {
-          updatePollVoteCount(payload.new as { poll_id: number; option_id: number; user_id: string });
+          const { poll_id, option_id, user_id } = payload.new as { poll_id: number; option_id: number; user_id: string };
+          updatePollVoteCount({ poll_id, option_id, user_id });
+          fetchPollData(poll_id); // Саналын мэдээллийг дахин татах
         }
       )
       .subscribe();
@@ -62,18 +64,42 @@ export default function Poll({ userId, roomId, polls, setPolls }: PollProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomId]);
+  }, [roomId, userId]);
 
   const fetchPollVotes = async () => {
-    if (userId) {
-      const { data: pollVotesData } = await supabase
-        .from('t_poll_votes')
-        .select('poll_id')
-        .eq('user_id', userId);
+    if (!userId) return;
 
-      if (pollVotesData) {
-        setUserPollVotes(new Set(pollVotesData.map(vote => vote.poll_id)));
-      }
+    const { data: pollVotesData, error } = await supabase
+      .from('t_poll_votes')
+      .select('poll_id')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Саналын түүхийг татахад алдаа:', error.message);
+      return;
+    }
+
+    if (pollVotesData) {
+      setUserPollVotes(new Set(pollVotesData.map(vote => vote.poll_id)));
+    }
+  };
+
+  const fetchPollData = async (pollId: number) => {
+    const { data, error } = await supabase
+      .from('t_polls')
+      .select('*')
+      .eq('poll_id', pollId)
+      .single();
+
+    if (error) {
+      console.error('Санал асуулгын мэдээлэл татахад алдаа:', error.message);
+      return;
+    }
+
+    if (data) {
+      setPolls(prev => prev.map(poll =>
+        poll.poll_id === pollId ? data : poll
+      ));
     }
   };
 
@@ -103,7 +129,19 @@ export default function Poll({ userId, roomId, polls, setPolls }: PollProps) {
       return;
     }
 
-    if (userPollVotes.has(pollId)) {
+    const { data: existingVote, error: checkError } = await supabase
+      .from('t_poll_votes')
+      .select('id')
+      .eq('poll_id', pollId)
+      .eq('user_id', userId)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      alert('Санал шалгахад алдаа: ' + checkError.message);
+      return;
+    }
+
+    if (existingVote || userPollVotes.has(pollId)) {
       alert('Та энэ санал асуулгад аль хэдийн санал өгсөн байна.');
       return;
     }
@@ -123,6 +161,7 @@ export default function Poll({ userId, roomId, polls, setPolls }: PollProps) {
     }
 
     updatePollVoteCount({ poll_id: pollId, option_id: optionId, user_id: userId });
+    await fetchPollData(pollId); // Санал асуулгын мэдээллийг шинэчлэх
   };
 
   return (
@@ -168,7 +207,7 @@ export default function Poll({ userId, roomId, polls, setPolls }: PollProps) {
             </div>
           ))}
           <div style={{ fontSize: '12px', color: '#888', marginTop: '8px' }}>
-            created: {poll.created_by === AI_BOT_UID ? 'Gemini AI' : poll.created_by} •{' '}
+            Үүсгэсэн: {poll.created_by === AI_BOT_UID ? 'Gemini AI' : poll.created_by} •{' '}
             {new Date(poll.created_at).toLocaleTimeString()}
           </div>
         </div>
