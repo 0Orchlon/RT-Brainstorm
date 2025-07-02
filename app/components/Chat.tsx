@@ -9,6 +9,7 @@ interface Message {
   chtext: string;
   chdate: string;
   uid: string;
+  type: 'message';
 }
 
 interface User {
@@ -29,7 +30,10 @@ interface Poll {
   created_by: string;
   created_at: string;
   room_id: string;
+  type: 'poll';
 }
+
+type ChatItem = Message | Poll;
 
 export default function Chat() {
   const { rid } = useParams();
@@ -41,14 +45,11 @@ export default function Chat() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [polls, setPolls] = useState<Poll[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
 
   const AI_BOT_UID = "4f3a9c1e-2b1d-4f9a-6b2c-7d8e9f3b6a1d";
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
 
   useEffect(() => {
     if (!rid) return;
@@ -95,7 +96,7 @@ export default function Chat() {
       fetchMessages();
       fetchPolls();
 
-      const channel = supabase
+      const chatChannel = supabase
         .channel(`room_chats_${rid}`)
         .on(
           'postgres_changes',
@@ -106,18 +107,47 @@ export default function Chat() {
             filter: `rid=eq.${rid}`,
           },
           (payload) => {
-            setMessages((prev) => [...prev, payload.new as Message]);
+            setMessages((prev) => [...prev, { ...payload.new, type: 'message' } as Message]);
+          }
+        )
+        .subscribe();
+
+      const pollChannel = supabase
+        .channel(`room_polls_${rid}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 't_polls',
+            filter: `room_id=eq.${rid}`,
+          },
+          (payload) => {
+            const newPoll = payload.new as Poll;
+            setPolls((prev) => {
+              if (prev.some((poll) => poll.poll_id === newPoll.poll_id)) {
+                console.warn('Realtime subscription-д давхардсан poll_id:', newPoll.poll_id);
+                return prev;
+              }
+              console.log('Шинэ poll нэмэгдлээ:', newPoll);
+              return [...prev, { ...newPoll, type: 'poll', options: newPoll.options || [] }];
+            });
           }
         )
         .subscribe();
 
       return () => {
-        supabase.removeChannel(channel);
+        supabase.removeChannel(chatChannel);
+        supabase.removeChannel(pollChannel);
       };
     };
 
     init();
-  }, [rid]);
+  }, [rid, navigate]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, polls]);
 
   async function fetchMessages() {
     const { data, error } = await supabase
@@ -127,7 +157,7 @@ export default function Chat() {
       .order('chdate', { ascending: true });
 
     if (error) console.error('Мессеж татахад алдаа:', error.message);
-    if (data) setMessages(data);
+    if (data) setMessages(data.map((msg) => ({ ...msg, type: 'message' } as Message)));
   }
 
   async function fetchRoomUsers() {
@@ -170,79 +200,128 @@ export default function Chat() {
       .order('created_at', { ascending: true });
 
     if (error) console.error('Санал асуулга татахад алдаа:', error.message);
-    if (data) setPolls(data);
+    if (data) setPolls(data.map((poll) => ({ ...poll, type: 'poll' } as Poll)));
   }
 
   async function sendMessage() {
-    if (!newMessage.trim() || !userId || !rid) return;
+    if (!newMessage.trim() || !userId || !rid || isSubmitting) return;
+    setIsSubmitting(true);
 
-    if (newMessage.trim().startsWith('!aipoll')) {
-      const prompt = newMessage.trim().replace('!aipoll', '').trim();
-      if (!prompt) {
-        alert('AI-д илгээх текст оруулна уу.');
-        return;
-      }
-
-      const { error: userMsgError } = await supabase.from('t_chats').insert([
-        {
-          chtext: newMessage.trim(),
-          chdate: new Date().toISOString(),
-          uid: userId,
-          rid,
-        },
-      ]);
-
-      if (userMsgError) {
-        alert('AI асуултыг хадгалж чадсангүй: ' + userMsgError.message);
-        return;
-      }
-
-      setNewMessage('');
-      setAiLoading(true);
-      const aiPoll = await generateAIPoll(prompt);
-      setAiLoading(false);
-
-      if (aiPoll) {
-        const { error: pollError } = await supabase.from('t_polls').insert([
-          {
-            question: aiPoll.question,
-            options: aiPoll.options,
-            created_by: AI_BOT_UID,
-            created_at: new Date().toISOString(),
-            room_id: rid,
-          },
-        ]);
-
-        if (pollError) {
-          alert('Санал асуулга хадгалахад алдаа: ' + pollError.message);
+    try {
+      if (newMessage.trim().startsWith('!aipoll')) {
+        const prompt = newMessage.trim().replace('!aipoll', '').trim();
+        if (!prompt) {
+          alert('AI-д илгээх текст оруулна уу.');
           return;
         }
 
-        setPolls([...polls, aiPoll]);
-        const { error: aiError } = await supabase.from('t_chats').insert([
+        const { error: userMsgError } = await supabase.from('t_chats').insert([
           {
-            chtext: `Санал асуулга: ${aiPoll.question}`,
+            chtext: newMessage.trim(),
             chdate: new Date().toISOString(),
-            uid: AI_BOT_UID,
+            uid: userId,
             rid,
           },
         ]);
 
-        if (aiError) {
-          alert('AI хариу хадгалахад алдаа: ' + aiError.message);
+        if (userMsgError) {
+          alert('AI асуултыг хадгалж чадсангүй: ' + userMsgError.message);
+          return;
         }
-      }
-      return;
-    }
 
-    if (newMessage.trim().startsWith('!aibot')) {
-      const prompt = newMessage.trim().replace('!aibot', '').trim();
-      if (!prompt) {
-        alert('AI-д илгээх текст оруулна уу.');
+        setNewMessage('');
+        setAiLoading(true);
+        const aiPoll = await generateAIPoll(prompt);
+        setAiLoading(false);
+
+        if (aiPoll) {
+          const { data: insertedPoll, error: pollError } = await supabase
+            .from('t_polls')
+            .insert([
+              {
+                question: aiPoll.question,
+                options: aiPoll.options,
+                created_by: AI_BOT_UID,
+                created_at: new Date().toISOString(),
+                room_id: rid,
+              },
+            ])
+            .select()
+            .single();
+
+          if (pollError) {
+            alert('Санал асуулга хадгалахад алдаа: ' + pollError.message);
+            return;
+          }
+
+          setPolls((prev) => {
+            if (prev.some((poll) => poll.poll_id === insertedPoll.poll_id)) {
+              console.warn('Давхардсан poll_id:', insertedPoll.poll_id);
+              return prev;
+            }
+            return [...prev, { ...insertedPoll, type: 'poll' }];
+          });
+
+          const { error: aiError } = await supabase.from('t_chats').insert([
+            {
+              chtext: `Санал асуулга: ${aiPoll.question}`,
+              chdate: new Date().toISOString(),
+              uid: AI_BOT_UID,
+              rid,
+            },
+          ]);
+
+          if (aiError) {
+            alert('AI хариу хадгалахад алдаа: ' + aiError.message);
+          }
+        }
         return;
       }
 
-      const { error: userMsgError } = await supabase.from('t_chats').insert([
+      if (newMessage.trim().startsWith('!aibot')) {
+        const prompt = newMessage.trim().replace('!aibot', '').trim();
+        if (!prompt) {
+          alert('AI-д илгээх текст оруулна уу.');
+          return;
+        }
+
+        const { error: userMsgError } = await supabase.from('t_chats').insert([
+          {
+            chtext: newMessage.trim(),
+            chdate: new Date().toISOString(),
+            uid: userId,
+            rid,
+          },
+        ]);
+
+        if (userMsgError) {
+          alert('AI асуултыг хадгалж чадсангүй: ' + userMsgError.message);
+          return;
+        }
+
+        setNewMessage('');
+        setAiLoading(true);
+        const aiResponse = await askGemini(prompt);
+        setAiLoading(false);
+
+        if (aiResponse) {
+          const { error: aiError } = await supabase.from('t_chats').insert([
+            {
+              chtext: aiResponse,
+              chdate: new Date().toISOString(),
+              uid: AI_BOT_UID,
+              rid,
+            },
+          ]);
+
+          if (aiError) {
+            alert('AI хариу хадгалахад алдаа: ' + aiError.message);
+          }
+        }
+        return;
+      }
+
+      const { error } = await supabase.from('t_chats').insert([
         {
           chtext: newMessage.trim(),
           chdate: new Date().toISOString(),
@@ -251,48 +330,15 @@ export default function Chat() {
         },
       ]);
 
-      if (userMsgError) {
-        alert('AI асуултыг хадгалж чадсангүй: ' + userMsgError.message);
+      if (error) {
+        alert('Мессеж илгээхэд алдаа гарлаа: ' + error.message);
         return;
       }
 
       setNewMessage('');
-      setAiLoading(true);
-      const aiResponse = await askGemini(prompt);
-      setAiLoading(false);
-
-      if (aiResponse) {
-        const { error: aiError } = await supabase.from('t_chats').insert([
-          {
-            chtext: aiResponse,
-            chdate: new Date().toISOString(),
-            uid: AI_BOT_UID,
-            rid,
-          },
-        ]);
-
-        if (aiError) {
-          alert('AI хариу хадгалахад алдаа: ' + aiError.message);
-        }
-      }
-      return;
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const { error } = await supabase.from('t_chats').insert([
-      {
-        chtext: newMessage.trim(),
-        chdate: new Date().toISOString(),
-        uid: userId,
-        rid,
-      },
-    ]);
-
-    if (error) {
-      alert('Мессеж илгээхэд алдаа гарлаа: ' + error.message);
-      return;
-    }
-
-    setNewMessage('');
   }
 
   async function askGemini(prompt: string) {
@@ -368,8 +414,6 @@ export default function Chat() {
         return null;
       }
 
-      // API-ийн хариස
-
       responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
 
       let aiPoll;
@@ -384,7 +428,6 @@ export default function Chat() {
       setAiLoading(false);
 
       return {
-        poll_id: polls.length + 1,
         question: aiPoll.question,
         options: aiPoll.options.map((opt: string, index: number) => ({
           option_id: index + 1,
@@ -394,6 +437,7 @@ export default function Chat() {
         created_by: AI_BOT_UID,
         created_at: new Date().toISOString(),
         room_id: rid || '',
+        type: 'poll',
       };
     } catch (error: any) {
       setAiError('Сүлжээний алдаа: ' + error.message);
@@ -401,6 +445,13 @@ export default function Chat() {
       return null;
     }
   }
+
+  // Мессеж болон санал асуулгуудыг нэгтгэж, цагийн дарааллаар эрэмбэлэх (эхнээс төгсгөл хүртэл)
+  const chatItems: ChatItem[] = [...messages, ...polls].sort((a, b) => {
+    const dateA = new Date(a.type === 'message' ? a.chdate : a.created_at);
+    const dateB = new Date(b.type === 'message' ? b.chdate : a.created_at);
+    return dateA.getTime() - dateB.getTime(); // Хамгийн эртний дээд талд
+  });
 
   return (
     <div
@@ -432,64 +483,76 @@ export default function Chat() {
           backgroundColor: '#433c3b',
         }}
       >
-        {messages.map((msg) => {
-          const isAI = msg.uid === AI_BOT_UID;
-          const isMine = msg.uid === userId;
+        {chatItems.map((item) => {
+          if (item.type === 'message') {
+            const msg = item as Message;
+            const isAI = msg.uid === AI_BOT_UID;
+            const isMine = msg.uid === userId;
 
-          let senderName = 'Гарсан хэрэглэгч';
-          if (isAI) senderName = 'Gemini AI';
-          else {
-            const sender = users.find((u) => u.uid === msg.uid);
-            if (sender?.uname) senderName = sender.uname;
-          }
+            let senderName = 'Гарсан хэрэглэгч';
+            if (isAI) senderName = 'Gemini AI';
+            else {
+              const sender = users.find((u) => u.uid === msg.uid);
+              if (sender?.uname) senderName = sender.uname;
+            }
 
-          return (
-            <div
-              key={msg.chid}
-              style={{
-                alignSelf: isMine ? 'flex-end' : 'flex-start',
-                backgroundColor: isAI
-                  ? '#34a853'
-                  : isMine
-                  ? '#3d5afe'
-                  : '#ffffff',
-                color: isAI || isMine ? '#fff' : '#333',
-                padding: '12px 16px',
-                borderRadius: '18px',
-                maxWidth: '70%',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-                position: 'relative',
-                wordBreak: 'break-word',
-              }}
-            >
-              {!isMine && (
-                <div
-                  style={{
-                    fontSize: '13px',
-                    color: '#888',
-                    marginBottom: '4px',
-                    fontWeight: 600,
-                  }}
-                >
-                  {senderName}
-                </div>
-              )}
-              <div>{msg.chtext}</div>
+            return (
               <div
+                key={msg.chid}
                 style={{
-                  fontSize: '11px',
-                  color: isMine ? '#d0dfff' : '#999',
-                  marginTop: '6px',
-                  textAlign: 'right',
+                  alignSelf: isMine ? 'flex-end' : 'flex-start',
+                  backgroundColor: isAI
+                    ? '#34a853'
+                    : isMine
+                    ? '#3d5afe'
+                    : '#ffffff',
+                  color: isAI || isMine ? '#fff' : '#333',
+                  padding: '12px 16px',
+                  borderRadius: '18px',
+                  maxWidth: '70%',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                  position: 'relative',
+                  wordBreak: 'break-word',
                 }}
               >
-                {new Date(msg.chdate).toLocaleTimeString()}
+                {!isMine && (
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      color: '#888',
+                      marginBottom: '4px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {senderName}
+                  </div>
+                )}
+                <div>{msg.chtext}</div>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: isMine ? '#d0dfff' : '#999',
+                    marginTop: '6px',
+                    textAlign: 'right',
+                  }}
+                >
+                  {new Date(msg.chdate).toLocaleTimeString()}
+                </div>
               </div>
-            </div>
-          );
+            );
+          } else {
+            const poll = item as Poll;
+            return (
+              <Poll
+                key={poll.poll_id}
+                userId={userId}
+                roomId={rid}
+                polls={[poll]}
+                setPolls={setPolls}
+              />
+            );
+          }
         })}
-
-        <Poll userId={userId} roomId={rid} polls={polls} setPolls={setPolls} />
         <div ref={messagesEndRef} />
       </div>
 
@@ -525,14 +588,14 @@ export default function Chat() {
         />
         <button
           onClick={sendMessage}
-          disabled={aiLoading}
+          disabled={aiLoading || isSubmitting}
           style={{
             padding: '12px 20px',
-            backgroundColor: '#3d5afe',
+            backgroundColor: aiLoading || isSubmitting ? '#ccc' : '#3d5afe',
             color: 'white',
             border: 'none',
             borderRadius: '20px',
-            cursor: 'pointer',
+            cursor: aiLoading || isSubmitting ? 'not-allowed' : 'pointer',
             fontWeight: 500,
           }}
         >
