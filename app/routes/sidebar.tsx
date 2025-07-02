@@ -1,47 +1,74 @@
-import { useLoaderData } from "react-router";
+import type { UUID } from "crypto";
+import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router";
 import { supabase } from "~/lib/supabase";
 
-export type Room = {
-  rid: string;
+type Room = {
+  rid: UUID;
+  rname: string;
 };
 
-interface SidebarProps {
-  selectedRoom: string;
-  onRoomSelect: (rid: string) => void;
-}
+export default function Sidebar() {
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
-export async function loader() {
-  const { data, error } = await supabase
-    .from("t_chats")
-    .select("rid")
-    .not("rid", "is", null);
+  useEffect(() => {
+    const fetchRooms = async () => {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-  if (error) throw new Error(error.message);
+      if (userError || !user) {
+        console.error("User not authenticated", userError);
+        setLoading(false);
+        return;
+      }
 
-  const uniqueRoomIds = Array.from(new Set(data.map((item) => item.rid)));
-  return uniqueRoomIds.map((rid) => ({ rid }));
-}
+      const { data, error } = await supabase
+        .from("t_rooms_users")
+        .select("t_rooms(rid, rname)")
+        .eq("uid", user.id)
+        .returns<{ t_rooms: Room }[]>();
 
-export default function Sidebar({ selectedRoom, onRoomSelect }: SidebarProps) {
-  const rooms = useLoaderData() as Room[];
+      if (error) {
+        console.error("Error fetching rooms:", error);
+      } else {
+        const userRooms = data.map((row) => row.t_rooms);
+        setRooms(userRooms);
+      }
+      setLoading(false);
+    };
+
+    fetchRooms();
+  }, []);
+
+  const handleNavigate = (rid: UUID) => {
+    navigate(`/room/${rid}`);
+  };
 
   return (
-    <aside className="w-64 bg-gray-800 text-white p-4 flex flex-col min-h-screen overflow-y-auto">
+    <aside
+      ref={sidebarRef}
+      className="w-64 bg-gray-800 text-white p-4 flex flex-col min-h-screen overflow-y-auto"
+    >
       <h2 className="text-lg font-semibold mt-6 mb-4">Rooms</h2>
 
-      {rooms.length === 0 ? (
+      {loading ? (
+        <p className="text-sm text-gray-400">Loading...</p>
+      ) : rooms.length === 0 ? (
         <p className="text-sm text-gray-400">No rooms found.</p>
       ) : (
         <ul className="space-y-2">
           {rooms.map((room) => (
             <li
               key={room.rid}
-              onClick={() => onRoomSelect(room.rid)}
-              className={`cursor-pointer px-3 py-2 rounded ${
-                selectedRoom === room.rid ? "bg-gray-700" : "hover:bg-gray-700"
-              } transition duration-200`}
+              onClick={() => handleNavigate(room.rid)}
+              className="cursor-pointer px-3 py-2 rounded hover:bg-gray-700 transition duration-200"
             >
-              Room {room.rid.slice(0, 8)}...
+              {room.rname}
             </li>
           ))}
         </ul>
