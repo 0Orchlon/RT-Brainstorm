@@ -8,6 +8,7 @@ export default [
   route("dashboard", "pages/dashboard.tsx"),
   route("join/:rid", "features/join/joinz.tsx"),
   route("chat", "components/Chat.tsx"),
-  route("room/:room_id", "pages/ochat.tsx"),
-  route("room/:room_id/pollo", "layout/opoll.tsx")
+  route("room/:room_id", "pages/ochat.tsx",),
+    route("room/:room_id/pollo", "layout/opoll.tsx"),
+  
 ] satisfies RouteConfig;

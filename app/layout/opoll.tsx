@@ -132,7 +132,6 @@ export const action = async ({ request, params }: { request: Request; params: { 
     }
 
     const { error: voteError } = await supabase.from("t_answers").insert({
-      aid,
       qid,
       uid,
     });
@@ -174,6 +173,12 @@ type LoaderData = {
   room_id: string;
 };
 
+// type PollPanelProps = {
+//   polls: Poll[];
+//   current: Poll | null;
+//   room_id: string;
+//   userId: string;
+// };
 
 // Component
 export default function PollPanel() {
@@ -268,7 +273,7 @@ export default function PollPanel() {
       <fetcher.Form method="post" className="mt-1">
         <input type="hidden" name="intent" value="vote" />
         <input type="hidden" name="qid" value={qid} />
-        <input type="hidden" name="aid" value={idx} />
+        {/* <input type="hidden" name="aid" value={idx} /> */}
         <input type="hidden" name="uid" value={userId} />
         <input type="hidden" name="room_id" value={room_id} />
         <button
