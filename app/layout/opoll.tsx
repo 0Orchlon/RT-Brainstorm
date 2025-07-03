@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useFetcher, useLoaderData, useParams } from "react-router";
 import { supabase } from "~/lib/supabase";
-import type { LoaderFunctionArgs } from "react-router-dom";
+import { type LoaderFunctionArgs } from "react-router-dom";
 
 // Loader
 export async function loader({ params }: LoaderFunctionArgs) {
@@ -62,9 +62,14 @@ export async function loader({ params }: LoaderFunctionArgs) {
   }
 }
 
-
 // Action
-export const action = async ({ request, params }: { request: Request; params: { room_id: string } }) => {
+export const action = async ({
+  request,
+  params,
+}: {
+  request: Request;
+  params: { room_id: string };
+}) => {
   const formData = await request.formData();
   const intent = formData.get("intent");
   const uid = formData.get("uid") as string;
@@ -81,10 +86,12 @@ export const action = async ({ request, params }: { request: Request; params: { 
     if (!questionRaw) return new Response("Question required", { status: 400 });
 
     const [qtext, ...opts] = questionRaw.split("|");
-    const cleanOptions = opts.map(o => o.trim()).filter(o => o !== "");
+    const cleanOptions = opts.map((o) => o.trim()).filter((o) => o !== "");
 
     if (!qtext || cleanOptions.length < 2) {
-      return new Response("Poll must have a question and at least 2 options", { status: 400 });
+      return new Response("Poll must have a question and at least 2 options", {
+        status: 400,
+      });
     }
 
     // Step 1: Insert into t_polls
@@ -106,7 +113,7 @@ export const action = async ({ request, params }: { request: Request; params: { 
     }
 
     // Step 2: Insert each option as a separate question row
-    const questionsToInsert = cleanOptions.map(opt => ({
+    const questionsToInsert = cleanOptions.map((opt) => ({
       question: opt,
       pid: insertedPoll.pid,
     }));
@@ -147,7 +154,6 @@ export const action = async ({ request, params }: { request: Request; params: { 
   return new Response("Unknown intent", { status: 400 });
 };
 
-
 // Error boundary
 export function ErrorBoundary({ error }: { error: Error }) {
   return (
@@ -183,6 +189,8 @@ type LoaderData = {
 // Component
 export default function PollPanel() {
   const data = useLoaderData() as LoaderData | undefined;
+  const polls = data?.polls ?? [];
+    const room_id = data?.room_id ?? "";
   const fetcher = useFetcher();
   const [userId, setUserId] = useState("");
   const [selectedPoll, setSelectedPoll] = useState<Poll | null>(null);
@@ -190,15 +198,18 @@ export default function PollPanel() {
   const [questionInput, setQuestionInput] = useState("");
   const [optionsInput, setOptionsInput] = useState<string[]>(["", ""]);
 
-  useEffect(() => {
-    if (data?.current) setSelectedPoll(data.current);
-  }, [data]);
-
+useEffect(() => {
+  if (data?.polls.length) {
+    setSelectedPoll(data.current ?? data.polls[0]);
+  }
+}, [data]);
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) setUserId(user.id);
     });
   }, []);
+
+
 
   const handleOptionChange = (index: number, value: string) => {
     setOptionsInput((opts) => {
@@ -218,15 +229,87 @@ export default function PollPanel() {
     const options = optionsInput.map((o) => o.trim()).filter((o) => o !== "");
     return [question, ...options].join("|");
   };
+const renderCreatePollForm = () => (
+  <fetcher.Form method="post" className="mt-2 space-y-2">
+    <input type="hidden" name="intent" value="create" />
+    <input type="hidden" name="uid" value={userId} />
+    <input type="hidden" name="room_id" value={room_id} />
+    <input
+      type="hidden"
+      name="question"
+      value={buildQuestionString()}
+    />
+    <input
+      type="text"
+      value={questionInput}
+      onChange={(e) => setQuestionInput(e.target.value)}
+      placeholder="Poll question"
+      className="w-full border rounded p-2"
+      required
+    />
 
-  if (!data || !selectedPoll) return <div>Loading polls...</div>;
+    {optionsInput.map((opt, idx) => (
+      <div key={idx} className="flex space-x-2 items-center">
+        <input
+          type="text"
+          value={opt}
+          onChange={(e) => handleOptionChange(idx, e.target.value)}
+          placeholder={`Option ${idx + 1}`}
+          className="flex-grow border rounded p-2"
+          required
+        />
+        {optionsInput.length > 2 && (
+          <button
+            type="button"
+            onClick={() => removeOptionInput(idx)}
+            className="text-red-600 font-bold"
+          >
+            &times;
+          </button>
+        )}
+      </div>
+    ))}
 
-  const { polls, room_id } = data;
-  const voteCounts = selectedPoll.options.map((_, i) =>
-    selectedPoll.answers.filter((a) => a.aid === i).length
+    <button
+      type="button"
+      onClick={addOptionInput}
+      className="text-blue-700 underline text-sm"
+    >
+      + Add Option
+    </button>
+
+    <button
+      type="submit"
+      className="bg-green-600 text-white px-4 py-2 rounded"
+    >
+      Submit Poll
+    </button>
+  </fetcher.Form>
+);
+
+if (!data) return <div>Loading polls...</div>;
+if (!selectedPoll && !data.polls.length) {
+  // No polls at all – just show the panel with the create poll form
+  
+  return (
+    <div className="p-6 max-w-md w-full bg-gray-50 rounded shadow space-y-6 text-black">
+      <h2 className="font-bold text-xl">📊 Polls</h2>
+      <p className="text-gray-500">No polls found in this room yet. Create one below:</p>
+      {renderCreatePollForm()}
+    </div>
   );
+}
+
+if (!selectedPoll) return <div>Loading selected poll...</div>;
+
+//   const { polls, room_id } = data;
+const voteCounts = selectedPoll.qidList.map(
+  (qid) => selectedPoll.answers.filter((a) => a.qid === qid).length
+);
+
   const totalVotes = voteCounts.reduce((a, b) => a + b, 0);
   const userHasVoted = selectedPoll.answers.some((a) => a.uid === userId);
+
 
   return (
     <div className="p-6 max-w-md w-full bg-gray-50 rounded shadow space-y-6 text-black">
@@ -237,57 +320,61 @@ export default function PollPanel() {
         <label htmlFor="pollSelect" className="font-semibold">
           Select Poll:
         </label>
-       <select
-  id="pollSelect"
-  value={selectedPoll.pid}
-  onChange={(e) => {
-    const pid = Number(e.target.value);
-    const poll = polls.find((p) => p.pid === pid);
-    if (poll) setSelectedPoll(poll);
-  }}
-  className="border rounded p-1"
->
-  {polls.map((p) => (
-    <option key={p.pid} value={p.pid}>
-      {p.question}
-    </option>
-  ))}
-</select>
-
+        <select
+          id="pollSelect"
+          value={selectedPoll.pid}
+          onChange={(e) => {
+            const pid = Number(e.target.value);
+            const poll = polls.find((p) => p.pid === pid);
+            if (poll) setSelectedPoll(poll);
+          }}
+          className="border rounded p-1"
+        >
+          {polls.map((p) => (
+            <option key={p.pid} value={p.pid}>
+              {p.question}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Poll options */}
       <div className="bg-white rounded shadow p-4">
         <h3 className="font-semibold mb-4">{selectedPoll.question}</h3>
-{selectedPoll.options.map((opt, idx) => {
-  const qid = selectedPoll.qidList[idx];
-  const count = selectedPoll.answers.filter((a) => a.qid === qid).length;
-  const percent = totalVotes ? ((count / totalVotes) * 100).toFixed(1) : "0";
-  return (
-    <div key={qid} className="mb-3">
-      <div className="flex justify-between">
-        <span>{opt}</span>
-        <span>{percent}% ({count})</span>
-      </div>
+        {selectedPoll.options.map((opt, idx) => {
+          const qid = selectedPoll.qidList[idx];
+          const count = selectedPoll.answers.filter(
+            (a) => a.qid === qid
+          ).length;
+          const percent = totalVotes
+            ? ((count / totalVotes) * 100).toFixed(1)
+            : "0";
+          return (
+            <div key={qid} className="mb-3">
+              <div className="flex justify-between">
+                <span>{opt}</span>
+                <span>
+                  {percent}% ({count})
+                </span>
+              </div>
 
-      <fetcher.Form method="post" className="mt-1">
-        <input type="hidden" name="intent" value="vote" />
-        <input type="hidden" name="qid" value={qid} />
-        {/* <input type="hidden" name="aid" value={idx} /> */}
-        <input type="hidden" name="uid" value={userId} />
-        <input type="hidden" name="room_id" value={room_id} />
-        <button
-          type="submit"
-          className="bg-blue-600 text-black px-2 py-1 rounded disabled:opacity-50"
-          disabled={userHasVoted}
-        >
-          Vote
-        </button>
-      </fetcher.Form>
-    </div>
-  );
-})}
-
+              <fetcher.Form method="post" className="mt-1">
+                <input type="hidden" name="intent" value="vote" />
+                <input type="hidden" name="qid" value={qid} />
+                {/* <input type="hidden" name="aid" value={idx} /> */}
+                <input type="hidden" name="uid" value={userId} />
+                <input type="hidden" name="room_id" value={room_id} />
+                <button
+                  type="submit"
+                  className="bg-blue-600 text-black px-2 py-1 rounded disabled:opacity-50"
+                  disabled={userHasVoted}
+                >
+                  Vote
+                </button>
+              </fetcher.Form>
+            </div>
+          );
+        })}
       </div>
 
       {/* Create new poll */}
@@ -301,10 +388,14 @@ export default function PollPanel() {
 
         {showForm && (
           <fetcher.Form method="post" className="mt-2 space-y-2">
-  <input type="hidden" name="intent" value="create" />
-  <input type="hidden" name="uid" value={userId} />
-  <input type="hidden" name="room_id" value={room_id} />
-  <input type="hidden" name="question" value={buildQuestionString()} />
+            <input type="hidden" name="intent" value="create" />
+            <input type="hidden" name="uid" value={userId} />
+            <input type="hidden" name="room_id" value={room_id} />
+            <input
+              type="hidden"
+              name="question"
+              value={buildQuestionString()}
+            />
             <input
               type="text"
               value={questionInput}
@@ -325,7 +416,11 @@ export default function PollPanel() {
                   required
                 />
                 {optionsInput.length > 2 && (
-                  <button type="button" onClick={() => removeOptionInput(idx)} className="text-red-600 font-bold">
+                  <button
+                    type="button"
+                    onClick={() => removeOptionInput(idx)}
+                    className="text-red-600 font-bold"
+                  >
                     &times;
                   </button>
                 )}
@@ -340,7 +435,10 @@ export default function PollPanel() {
               + Add Option
             </button>
 
-            <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
+            <button
+              type="submit"
+              className="bg-green-600 text-white px-4 py-2 rounded"
+            >
               Submit Poll
             </button>
           </fetcher.Form>
