@@ -9,6 +9,7 @@ interface Message {
   chtext: string;
   chdate: string;
   uid: string;
+  rid: string;
   type: "message";
 }
 
@@ -98,7 +99,7 @@ export default function Chat() {
       fetchPolls();
 
       const chatChannel = supabase
-        .channel(`room_chats_${rid}`)
+        .channel(`room_chats`)
         .on(
           "postgres_changes",
           {
@@ -108,10 +109,15 @@ export default function Chat() {
             filter: `rid=eq.${rid}`,
           },
           (payload) => {
-            setMessages((prev) => [
-              ...prev,
-              { ...payload.new, type: "message" } as Message,
-            ]);
+            const newMsg = { ...payload.new, type: "message" } as Message;
+            if (newMsg.rid !== rid) return;
+            setMessages((prev) => {
+              // Check if message with this chid already exists to avoid duplicate
+              if (prev.some((msg) => msg.chid === newMsg.chid)) {
+                return prev; // skip duplicate
+              }
+              return [...prev, newMsg];
+            });
           }
         )
         .subscribe();
@@ -332,29 +338,24 @@ export default function Chat() {
         return;
       }
 
-      const { error } = await supabase.from("t_chats").insert([
-        {
-          chtext: newMessage.trim(),
-          chdate: new Date().toISOString(),
-          uid: userId,
-          rid,
-        },
-      ]);
+      const { data: insertedMessage, error } = await supabase
+        .from("t_chats")
+        .insert([
+          {
+            chtext: newMessage.trim(),
+            chdate: new Date().toISOString(),
+            uid: userId,
+            rid,
+          },
+        ])
+        .select()
+        .single();
 
       if (error) {
         alert("Мессеж илгээхэд алдаа гарлаа: " + error.message);
+        setIsSubmitting(false);
         return;
       }
-      setMessages((prev) => [
-        ...prev,
-        {
-          chid: Date.now(), // temporary unique id, since insert doesn't return it here
-          chtext: newMessage.trim(),
-          chdate: new Date().toISOString(),
-          uid: userId,
-          type: "message",
-        },
-      ]);
 
       setNewMessage("");
     } finally {
@@ -479,7 +480,7 @@ export default function Chat() {
   // Мессеж болон санал асуулгуудыг нэгтгэж, цагийн дарааллаар эрэмбэлэх (эхнээс төгсгөл хүртэл)
   const chatItems: ChatItem[] = [...messages, ...polls].sort((a, b) => {
     const dateA = new Date(a.type === "message" ? a.chdate : a.created_at);
-    const dateB = new Date(b.type === "message" ? b.chdate : a.created_at);
+    const dateB = new Date(b.type === "message" ? b.chdate : b.created_at);
     return dateA.getTime() - dateB.getTime(); // Хамгийн эртний дээд талд
   });
 
@@ -498,7 +499,6 @@ export default function Chat() {
         roomId={rid}
         userId={userId}
         onAddUserClick={() => alert("Хүн нэмэхийг энд хэрэгжүүлнэ үү")}
-        onUserClick={(uid) => alert("User clicked: " + uid)}
         users={users}
       />
 
