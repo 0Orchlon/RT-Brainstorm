@@ -1,6 +1,9 @@
 import type { Route } from "./+types/home";
 import { Welcome } from "../welcome/welcome";
 import { Navbar } from "../layout/navbar";
+import type { useState } from "react";
+import aiResponse from "~/components/AIAPI";
+import Sidebar from "../routes/sidebar";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -10,9 +13,11 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Home() {
+  // const [apis, setApis] useState
+
   return (
     <>
-      <div>
+      <div className="flex-1 flex items-center justify-center">
         <Welcome />
       </div>
     </>
